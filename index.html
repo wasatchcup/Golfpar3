@@ -336,6 +336,7 @@
     <div class="section-sub">Set tee times and player names. Everything below saves automatically.</div>
     <div class="tee-grid" id="teeGrid"></div>
     <button class="reset-btn" id="resetBtn">Reset all scores</button>
+    <button class="reset-btn" id="resetAllBtn" style="margin-top:10px;">Reset everything (names, tee times &amp; scores)</button>
     <div class="status" id="statusMsg2">&nbsp;</div>
   </div>
 
@@ -773,6 +774,13 @@ function renderTeeGrid(){
 document.getElementById('resetBtn').addEventListener('click', ()=>{
   if(!confirm('Clear all scores for every player? Names and tee times stay.')) return;
   state.players.forEach(p=> p.scores = Array(TOTAL_HOLES).fill(null));
+  queueSave();
+  render();
+});
+
+document.getElementById('resetAllBtn').addEventListener('click', ()=>{
+  if(!confirm('Start a brand new tournament? This clears every player name, tee time, and score for everyone. This cannot be undone.')) return;
+  state = defaultState();
   queueSave();
   render();
 });
