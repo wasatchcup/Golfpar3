@@ -326,12 +326,28 @@
 
 </div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-app.js";
+import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyClRF7PWDVoN3DNSOAtacBOfU6hyzmMl8k",
+  authDomain: "par3-a5ba9.firebaseapp.com",
+  projectId: "par3-a5ba9",
+  storageBucket: "par3-a5ba9.firebasestorage.app",
+  messagingSenderId: "852448392540",
+  appId: "1:852448392540:web:b4cf6ac6c0fecd38ddfd99",
+  measurementId: "G-NZ8DNDPJVL"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const db = getFirestore(fbApp);
+const stateDocRef = doc(db, 'tournaments', 'triple-loop-state');
+
 const HOLES_PER_LOOP = 5;
 const LOOPS = 3;
 const TOTAL_HOLES = HOLES_PER_LOOP * LOOPS;
 const PAR_PER_HOLE = 3;
-const STORAGE_KEY = 'triple-loop-state';
 const SCORE_OPTIONS = [1,2,3,4,5,6,7,8];
 const CONTEXT_LABELS = {1:'Hole in one!',2:'Birdie',3:'Par',4:'Bogey',5:'Double bogey',6:'Triple bogey',7:'+4',8:'+5 or worse'};
 
@@ -348,6 +364,7 @@ let state = defaultState();
 let saveTimer = null;
 let currentGroupIdx = null;
 let currentHole = 0;
+let applyingRemoteUpdate = false;
 
 function setStatus(msg){
   const a = document.getElementById('statusMsg');
@@ -356,29 +373,13 @@ function setStatus(msg){
   if(b) b.textContent = msg;
 }
 
-async function loadState(){
-  try{
-    const res = await window.storage.get(STORAGE_KEY, true);
-    if(res && res.value){
-      const parsed = JSON.parse(res.value);
-      if(parsed && Array.isArray(parsed.players) && parsed.players.length === 9){
-        state = parsed;
-      }
-    }
-    setStatus('Synced · shared with everyone viewing this card');
-  }catch(e){
-    setStatus('Starting fresh · shared with everyone viewing this card');
-  }
-  render();
-}
-
 function queueSave(){
   setStatus('Saving…');
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async ()=>{
     try{
-      const result = await window.storage.set(STORAGE_KEY, JSON.stringify(state), true);
-      setStatus(result ? 'Synced · shared with everyone viewing this card' : 'Could not save — check connection');
+      await setDoc(stateDocRef, { json: JSON.stringify(state) });
+      setStatus('Live · synced just now');
     }catch(e){
       setStatus('Could not save — check connection');
     }
@@ -705,34 +706,39 @@ function refreshCurrentView(){
   }
 }
 
-async function pollState(){
+onSnapshot(stateDocRef, (snap)=>{
+  if(!snap.exists()){
+    // no tournament doc yet — seed it with our current (default) state
+    setDoc(stateDocRef, { json: JSON.stringify(state) }).catch(()=>{});
+    render();
+    setStatus('Live · tournament created');
+    return;
+  }
+  const data = snap.data();
+  if(!data || !data.json) return;
+
+  let parsed;
+  try{ parsed = JSON.parse(data.json); }catch(e){ return; }
+  if(!parsed || !Array.isArray(parsed.players) || parsed.players.length !== 9) return;
+
+  const incoming = JSON.stringify(parsed);
+  const existing = JSON.stringify(state);
+  if(incoming === existing){
+    setStatus('Live · synced');
+    return;
+  }
+
   const activeEl = document.activeElement;
   const isTyping = activeEl && activeEl.classList && (activeEl.classList.contains('name-input') || activeEl.classList.contains('tee-time-input'));
   if(isTyping) return; // don't yank a field out from under someone mid-keystroke
-  try{
-    const res = await window.storage.get(STORAGE_KEY, true);
-    if(res && res.value){
-      const parsed = JSON.parse(res.value);
-      if(parsed && Array.isArray(parsed.players) && parsed.players.length === 9){
-        const incoming = JSON.stringify(parsed);
-        const existing = JSON.stringify(state);
-        if(incoming !== existing){
-          state = parsed;
-          refreshCurrentView();
-        }
-      }
-    }
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString([], {hour:'numeric', minute:'2-digit', second:'2-digit'});
-    setStatus('Live · last checked ' + timeStr);
-  }catch(e){
-    setStatus('Live sync paused — check connection');
-  }
-}
 
-setInterval(pollState, 8000);
+  state = parsed;
+  refreshCurrentView();
+  setStatus('Live · updated just now');
+}, (err)=>{
+  setStatus('Live sync paused — check connection');
+});
 
-loadState();
 </script>
 </body>
 </html>
