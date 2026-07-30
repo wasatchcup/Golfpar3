@@ -282,6 +282,21 @@
         </table>
       </div>
     </div>
+
+    <div class="section-title"><span class="num">Groups</span></div>
+    <div class="section-sub">Combined score for each tee time — all 3 players added together.</div>
+    <div class="leaderboard">
+      <div class="lb-inner">
+        <table class="lb-table">
+          <thead>
+            <tr>
+              <th>Pos</th><th>Group</th><th class="center">Thru</th><th class="center">To Par</th><th class="center">Total</th>
+            </tr>
+          </thead>
+          <tbody id="lbGroupBody"></tbody>
+        </table>
+      </div>
+    </div>
     <div class="status" id="statusMsg">Loading tournament…</div>
   </div>
 
@@ -408,7 +423,7 @@ document.querySelectorAll('.nav-pill').forEach(btn=>{
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
     document.getElementById('view-'+btn.dataset.view).classList.add('active');
     if(btn.dataset.view === 'enter'){ renderGroupPick(); showGroupPick(); }
-    if(btn.dataset.view === 'leaderboard'){ renderLeaderboard(); }
+    if(btn.dataset.view === 'leaderboard'){ renderLeaderboard(); renderGroupLeaderboard(); }
   });
 });
 
@@ -447,6 +462,78 @@ function renderLeaderboard(){
     const thruTd = document.createElement('td');
     thruTd.className = 'center';
     thruTd.textContent = r.count + '/' + TOTAL_HOLES;
+    tr.appendChild(thruTd);
+
+    const toParTd = document.createElement('td');
+    toParTd.className = 'to-par ' + (r.toPar === null ? '' : r.toPar === 0 ? 'even' : r.toPar < 0 ? 'under' : 'over');
+    toParTd.textContent = fmtToPar(r.toPar);
+    tr.appendChild(toParTd);
+
+    const totalTd = document.createElement('td');
+    totalTd.className = 'score-total';
+    totalTd.textContent = r.count > 0 ? r.total : '–';
+    tr.appendChild(totalTd);
+
+    body.appendChild(tr);
+  });
+}
+
+function computeGroupTotals(teeIdx){
+  const groupPlayers = state.players.filter(p=>p.teeIdx===teeIdx);
+  let total = 0, count = 0;
+  groupPlayers.forEach(p=>{
+    p.scores.forEach(s=>{
+      if(s !== null && s !== undefined && s !== ''){
+        total += Number(s);
+        count += 1;
+      }
+    });
+  });
+  const toPar = count > 0 ? (total - count*PAR_PER_HOLE) : null;
+  return { total, count, toPar };
+}
+
+function renderGroupLeaderboard(){
+  const body = document.getElementById('lbGroupBody');
+  if(!body) return;
+  body.innerHTML = '';
+  const maxCount = state.teeTimes.length * 3 * TOTAL_HOLES;
+
+  const rows = state.teeTimes.map((tee, teeIdx)=>{
+    const totals = computeGroupTotals(teeIdx);
+    return { teeIdx, tee, ...totals };
+  });
+  rows.sort((a,b)=>{
+    if(a.count === 0 && b.count === 0) return a.teeIdx - b.teeIdx;
+    if(a.count === 0) return 1;
+    if(b.count === 0) return -1;
+    if(a.toPar !== b.toPar) return a.toPar - b.toPar;
+    return a.total - b.total;
+  });
+
+  rows.forEach((r, pos)=>{
+    const tr = document.createElement('tr');
+    if(r.count > 0){
+      if(pos === 0) tr.classList.add('medal-1');
+      else if(pos === 1) tr.classList.add('medal-2');
+      else if(pos === 2) tr.classList.add('medal-3');
+    }
+
+    const rankTd = document.createElement('td');
+    rankTd.className = 'rank';
+    rankTd.textContent = r.count > 0 ? (pos+1) : '—';
+    tr.appendChild(rankTd);
+
+    const nameTd = document.createElement('td');
+    nameTd.className = 'player-cell';
+    const groupPlayers = state.players.filter(p=>p.teeIdx===r.teeIdx);
+    const namesStr = groupPlayers.map(p=> playerName(p, state.players.indexOf(p))).join(' · ');
+    nameTd.innerHTML = 'Group ' + String.fromCharCode(65+r.teeIdx) + '<span class="tee-tag">'+namesStr+'</span>';
+    tr.appendChild(nameTd);
+
+    const thruTd = document.createElement('td');
+    thruTd.className = 'center';
+    thruTd.textContent = r.count + '/' + (3*TOTAL_HOLES);
     tr.appendChild(thruTd);
 
     const toParTd = document.createElement('td');
@@ -626,7 +713,7 @@ document.getElementById('nextHoleBtn').addEventListener('click', ()=>{
     document.querySelector('.nav-pill[data-view="leaderboard"]').classList.add('active');
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
     document.getElementById('view-leaderboard').classList.add('active');
-    renderLeaderboard();
+    renderLeaderboard(); renderGroupLeaderboard();
   }
 });
 
@@ -684,7 +771,7 @@ document.getElementById('resetBtn').addEventListener('click', ()=>{
 });
 
 function render(){
-  renderLeaderboard();
+  renderLeaderboard(); renderGroupLeaderboard();
   renderTeeGrid();
   renderGroupPick();
 }
@@ -693,7 +780,7 @@ function refreshCurrentView(){
   const activePill = document.querySelector('.nav-pill.active');
   const activeView = activePill ? activePill.dataset.view : 'leaderboard';
   if(activeView === 'leaderboard'){
-    renderLeaderboard();
+    renderLeaderboard(); renderGroupLeaderboard();
   } else if(activeView === 'admin'){
     renderTeeGrid();
   } else if(activeView === 'enter'){
