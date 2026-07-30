@@ -244,7 +244,7 @@
 
   <div class="view active" id="view-leaderboard">
     <div class="hero">
-      <div class="eyebrow">Nine Players · Three Tee Times</div>
+      <div class="eyebrow">Twelve Players · Four Tee Times</div>
       <h1>The Triple Loop</h1>
       <div class="subtitle">5 holes, each a <b>par 3</b> — played <b>3 times through</b> · 15 holes · Par 45</div>
       <div class="loop-diagram">
@@ -367,9 +367,9 @@ const SCORE_OPTIONS = [1,2,3,4,5,6,7,8];
 const CONTEXT_LABELS = {1:'Hole in one!',2:'Birdie',3:'Par',4:'Bogey',5:'Double bogey',6:'Triple bogey',7:'+4',8:'+5 or worse'};
 
 function defaultState(){
-  const teeTimes = [ { time: '6:00 PM' }, { time: '6:00 PM' }, { time: '6:00 PM' } ];
+  const teeTimes = [ { time: '6:00 PM' }, { time: '6:00 PM' }, { time: '6:00 PM' }, { time: '6:00 PM' } ];
   const players = [];
-  for(let i=0;i<9;i++){
+  for(let i=0;i<12;i++){
     players.push({ id: 'p'+i, name: '', teeIdx: Math.floor(i/3), scores: Array(TOTAL_HOLES).fill(null) });
   }
   return { teeTimes, players };
@@ -414,6 +414,13 @@ function fmtToPar(toPar){
   if(toPar === null) return '–';
   if(toPar === 0) return 'E';
   return toPar > 0 ? ('+'+toPar) : String(toPar);
+}
+
+function isValidState(parsed){
+  if(!parsed || !Array.isArray(parsed.players) || !Array.isArray(parsed.teeTimes)) return false;
+  if(parsed.players.length === 0 || parsed.players.length % 3 !== 0) return false;
+  if(parsed.teeTimes.length !== parsed.players.length / 3) return false;
+  return true;
 }
 
 document.querySelectorAll('.nav-pill').forEach(btn=>{
@@ -806,7 +813,7 @@ onSnapshot(stateDocRef, (snap)=>{
 
   let parsed;
   try{ parsed = JSON.parse(data.json); }catch(e){ return; }
-  if(!parsed || !Array.isArray(parsed.players) || parsed.players.length !== 9) return;
+  if(!parsed || !isValidState(parsed)) return;
 
   const incoming = JSON.stringify(parsed);
   const existing = JSON.stringify(state);
